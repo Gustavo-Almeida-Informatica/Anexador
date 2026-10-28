@@ -182,6 +182,53 @@
       .projeto{padding:13px}
       .projeto-icone{width:45px;height:45px;flex-basis:45px}
     }
+    /* Tema adaptável à cor predominante da foto */
+    :root {
+      --cor-destaque: #ff315f;
+      --cor-secundaria: #8b5cf6;
+      --cor-brilho: rgba(255,49,95,.22);
+    }
+    body.tema-foto {
+      background:
+        radial-gradient(circle at 50% 0%,var(--cor-brilho),transparent 38%),
+        radial-gradient(circle at 0% 50%,color-mix(in srgb,var(--cor-secundaria) 13%,transparent),transparent 32%),
+        #08080d;
+    }
+    body.tema-foto .top-line,
+    body.tema-foto .secao-titulo::before {
+      background: linear-gradient(90deg,var(--cor-destaque),var(--cor-secundaria),var(--cor-destaque));
+      box-shadow: 0 0 18px var(--cor-brilho);
+    }
+    body.tema-foto .foto-glow {
+      background: radial-gradient(circle,var(--cor-brilho),color-mix(in srgb,var(--cor-secundaria) 22%,transparent) 45%,transparent 72%);
+    }
+    body.tema-foto .foto-borda {
+      background: linear-gradient(135deg,var(--cor-destaque),var(--cor-secundaria),var(--cor-destaque));
+      box-shadow: 0 0 0 1px rgba(255,255,255,.08),0 0 30px var(--cor-brilho);
+    }
+    body.tema-foto .nome {
+      background: linear-gradient(90deg,#fff,color-mix(in srgb,var(--cor-destaque) 45%,white),color-mix(in srgb,var(--cor-secundaria) 40%,white));
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    body.tema-foto .rede:hover,
+    body.tema-foto .projeto:hover {
+      border-color: color-mix(in srgb,var(--cor-destaque) 48%,transparent);
+      background: linear-gradient(135deg,color-mix(in srgb,var(--cor-destaque) 13%,transparent),color-mix(in srgb,var(--cor-secundaria) 9%,transparent));
+    }
+    body.tema-foto .projeto::after {
+      background: linear-gradient(to bottom,var(--cor-destaque),var(--cor-secundaria));
+    }
+    body.tema-foto .projeto-icone {
+      background: linear-gradient(135deg,color-mix(in srgb,var(--cor-destaque) 18%,transparent),color-mix(in srgb,var(--cor-secundaria) 12%,transparent));
+      color: var(--cor-destaque);
+    }
+    body.tema-foto .compartilhar {
+      background: linear-gradient(135deg,color-mix(in srgb,var(--cor-destaque) 15%,transparent),color-mix(in srgb,var(--cor-secundaria) 12%,transparent));
+    }
+    body.tema-foto .compartilhar:hover {
+      border-color: color-mix(in srgb,var(--cor-destaque) 48%,transparent);
+    }
+
     @media (prefers-reduced-motion:reduce) {
       *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
     }
@@ -391,15 +438,102 @@
     }
 
     const foto = document.getElementById("foto");
-    const tentativas = fotosParaTentar();
 
-    function proximaFoto() {
-      if (!tentativas.length) return;
-      foto.onerror = proximaFoto;
-      foto.src = tentativas.shift();
+    // Aceita PNG hospedado no GitHub pelo parâmetro ?foto=URL.
+    // Exemplo: ?foto=https%3A%2F%2Fraw.githubusercontent.com%2Fusuario%2Frepo%2Fmain%2Ffoto.png
+    function normalizarUrlFoto(valor) {
+      if (!valor) return null;
+      let url = valor.trim();
+
+      // Também aceita links comuns do GitHub no formato /blob/.
+      const githubBlob = url.match(/^https?:\\/\\/github\\.com\\/([^/]+)\\/([^/]+)\\/blob\\/([^/]+)\\/(.+)$/i);
+      if (githubBlob) {
+        url = `https://raw.githubusercontent.com/${githubBlob[1]}/${githubBlob[2]}/${githubBlob[3]}/${githubBlob[4]}`;
+      } else if (/^https?:\\/\\/raw\\.githubusercontent\\.com\\//i.test(url)) {
+        // Link raw já está no formato correto.
+      } else if (/^https?:\\/\\/github\\.com\\//i.test(url)) {
+        throw new Error("Use o link do arquivo PNG (Raw) do GitHub.");
+      }
+
+      const parsed = new URL(url, window.location.href);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        throw new Error("O endereço da imagem precisa ser HTTP ou HTTPS.");
+      }
+      if (!/\\.png$/i.test(parsed.pathname) && !parsed.searchParams.has("raw")) {
+        // Não bloqueia imagens com URL sem extensão; a validação final é feita pelo navegador.
+      }
+      return parsed.href;
     }
 
-    proximaFoto();
+    function rgbParaHex(r, g, b) {
+      return "#" + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+    }
+
+    function aplicarTemaDaFoto() {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 48;
+        canvas.height = 48;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(foto, 0, 0, 48, 48);
+        const pixels = ctx.getImageData(0, 0, 48, 48).data;
+        let r = 0, g = 0, b = 0, total = 0;
+        // Amostragem simples: ignora pixels quase transparentes e extremos muito escuros.
+        for (let i = 0; i < pixels.length; i += 16) {
+          const alpha = pixels[i + 3] / 255;
+          const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2];
+          const brilho = (pr + pg + pb) / 3;
+          if (alpha < .5 || brilho < 24) continue;
+          r += pr; g += pg; b += pb; total++;
+        }
+        if (!total) return;
+        r /= total; g /= total; b /= total;
+        // Aumenta a saturação para uma cor de destaque mais visível.
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const fator = max === min ? 1 : Math.min(1.35, 1 + (max - min) / 180);
+        r = max + (r - max) * fator;
+        g = max + (g - max) * fator;
+        b = max + (b - max) * fator;
+        const destaque = rgbParaHex(r, g, b);
+        const secundario = rgbParaHex(r * .72 + 255 * .28, g * .72 + 255 * .28, b * .72 + 255 * .28);
+        document.documentElement.style.setProperty("--cor-destaque", destaque);
+        document.documentElement.style.setProperty("--cor-secundaria", secundario);
+        document.documentElement.style.setProperty("--cor-brilho", `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},.24)`);
+        document.body.classList.add("tema-foto");
+      } catch (erro) {
+        // Se o servidor da imagem bloquear leitura por CORS, a foto ainda aparece;
+        // o site mantém o tema padrão sem interromper a página.
+        console.info("Não foi possível extrair as cores desta imagem; mantendo o tema padrão.", erro);
+      }
+    }
+
+    function carregarFoto() {
+      const params = new URLSearchParams(window.location.search);
+      const fotoPersonalizada = params.get("foto");
+      if (fotoPersonalizada) {
+        try {
+          const url = normalizarUrlFoto(fotoPersonalizada);
+          foto.onload = aplicarTemaDaFoto;
+          foto.onerror = () => mostrarToast("Não foi possível carregar essa imagem. Confira o link PNG.");
+          foto.src = url;
+          return;
+        } catch (erro) {
+          console.warn(erro);
+          mostrarToast(erro.message || "Link de imagem inválido.");
+        }
+      }
+
+      const tentativas = fotosParaTentar();
+      function proximaFoto() {
+        if (!tentativas.length) return;
+        foto.onload = aplicarTemaDaFoto;
+        foto.onerror = proximaFoto;
+        foto.src = tentativas.shift();
+      }
+      proximaFoto();
+    }
+
+    carregarFoto();
 
     const botaoCompartilhar = document.getElementById("compartilhar");
     const toast = document.getElementById("toast");
