@@ -446,12 +446,12 @@
       let url = valor.trim();
 
       // Também aceita links comuns do GitHub no formato /blob/.
-      const githubBlob = url.match(/^https?:\\/\\/github\\.com\\/([^/]+)\\/([^/]+)\\/blob\\/([^/]+)\\/(.+)$/i);
+      const githubBlob = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/i);
       if (githubBlob) {
         url = `https://raw.githubusercontent.com/${githubBlob[1]}/${githubBlob[2]}/${githubBlob[3]}/${githubBlob[4]}`;
-      } else if (/^https?:\\/\\/raw\\.githubusercontent\\.com\\//i.test(url)) {
+      } else if (/^https?:\/\/raw\.githubusercontent\.com\//i.test(url)) {
         // Link raw já está no formato correto.
-      } else if (/^https?:\\/\\/github\\.com\\//i.test(url)) {
+      } else if (/^https?:\/\/github\.com\//i.test(url)) {
         throw new Error("Use o link do arquivo PNG (Raw) do GitHub.");
       }
 
